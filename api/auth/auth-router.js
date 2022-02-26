@@ -1,7 +1,21 @@
-const router = require('express').Router();
+const router = require("express").Router();
+const bcrypt = require("bcryptjs");
+const Jokes = require("../jokes/jokes-model");
+const { BCRYPT_ROUNDS } = require("../../config/index.js");
+const { checkCredentials, checkUsernameExists } = require('./auth-middleware')
+const TokenMaker = require("./auth-token.js");
 
-router.post('/register', (req, res) => {
-  res.end('implement register, please!');
+
+router.post("/register",checkCredentials, checkUsernameExists , async (req, res, next) => {
+  const { username, password } = req.body;
+  try {
+    const hash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
+    const newUser = { username, password: hash };
+    const addedUser = await Jokes.add(newUser);
+    res.status(200).json({ message: `Welcome, ${addedUser.username}` });
+  } catch (err) {
+    next(err);
+  }
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
@@ -29,8 +43,18 @@ router.post('/register', (req, res) => {
   */
 });
 
-router.post('/login', (req, res) => {
-  res.end('implement login, please!');
+router.post("/login",checkCredentials, (req, res, next) => {
+  let { username, password } = req.body;
+  Jokes.findBy({ username })
+  .then(([user]) => {
+    if (user && bcrypt.compareSync(password, user.password)) {
+      const token = TokenMaker(user);
+      res.status(200).json({ message: `welcome, ${user.username}`, token });
+    } else {
+      next({ status: 401, message: "invalid credentials" });
+    }
+  })
+  .catch(next);
   /*
     IMPLEMENT
     You are welcome to build additional middlewares to help with the endpoint's functionality.
